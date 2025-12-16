@@ -33,7 +33,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,13 +75,12 @@ class MainActivity : ComponentActivity() {
 fun MotionScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
-    val esp32Ip = "10.165.74.53"
-    val captureUrl = "http://$esp32Ip/capture"
-
     var systemOn by remember { mutableStateOf(true) }
     var motionDetected by remember { mutableStateOf(false) }
 
-    var imageUrl by remember { mutableStateOf(captureUrl) }
+    var currentCamIp by remember { mutableStateOf("") }
+
+    var imageUrl by remember { mutableStateOf("") }
 
     var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
@@ -102,19 +100,31 @@ fun MotionScreen(modifier: Modifier = Modifier) {
                 val isMotion = snapshot.getValue(Boolean::class.java) ?: false
                 motionDetected = isMotion
 
-                if (isMotion && systemOn) {
-                    imageUrl = "$captureUrl?t=${System.currentTimeMillis()}"
+                if (isMotion && systemOn && currentCamIp.isNotEmpty()) {
+                    imageUrl = "http://$currentCamIp/capture?t=${System.currentTimeMillis()}"
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+
+        doorRef.child("cam_ip").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val ip = snapshot.getValue(String::class.java)
+                if (!ip.isNullOrEmpty()) {
+                    currentCamIp = ip
+                    // Set URL awal
+                    imageUrl = "http://$ip/capture"
                 }
             }
             override fun onCancelled(error: DatabaseError) {}
         })
     }
 
-    LaunchedEffect(motionDetected, systemOn) {
-        if (motionDetected && systemOn) {
+    LaunchedEffect(motionDetected, systemOn, currentCamIp) {
+        if (motionDetected && systemOn && currentCamIp.isNotEmpty()) {
             while (isActive) {
                 val request = ImageRequest.Builder(context)
-                    .data("$captureUrl?t=${System.currentTimeMillis()}")
+                    .data("http://$currentCamIp/capture?t=${System.currentTimeMillis()}")
                     .allowHardware(false)
                     .build()
 
@@ -122,7 +132,6 @@ fun MotionScreen(modifier: Modifier = Modifier) {
                     val result = context.imageLoader.execute(request)
                     if (result is SuccessResult) {
                         val bitmap = (result.drawable as BitmapDrawable).bitmap
-
                         withContext(Dispatchers.IO) {
                             saveImageToGallery(context, bitmap, auto = true)
                         }
@@ -130,7 +139,6 @@ fun MotionScreen(modifier: Modifier = Modifier) {
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-
                 delay(2000)
             }
         }
@@ -147,6 +155,12 @@ fun MotionScreen(modifier: Modifier = Modifier) {
             text = "Smart Door Monitor",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            text = if (currentCamIp.isEmpty()) "Menunggu IP Camera..." else "Connected to: $currentCamIp",
+            fontSize = 12.sp,
+            color = if (currentCamIp.isEmpty()) Color.Red else Color.Gray
         )
 
         Card(
@@ -204,18 +218,24 @@ fun MotionScreen(modifier: Modifier = Modifier) {
                 .fillMaxWidth()
                 .background(Color.Black)
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(imageUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "Camera Stream",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                onSuccess = { result ->
-                    currentBitmap = (result.result.drawable as BitmapDrawable).bitmap
+            if (currentCamIp.isNotEmpty()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Camera Stream",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    onSuccess = { result ->
+                        currentBitmap = (result.result.drawable as BitmapDrawable).bitmap
+                    }
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Connecting to Camera...", color = Color.White)
                 }
-            )
+            }
         }
 
         Row(
@@ -224,10 +244,10 @@ fun MotionScreen(modifier: Modifier = Modifier) {
         ) {
             Button(
                 onClick = {
-                    if (systemOn) {
-                        imageUrl = "$captureUrl?t=${System.currentTimeMillis()}"
+                    if (systemOn && currentCamIp.isNotEmpty()) {
+                        imageUrl = "http://$currentCamIp/capture?t=${System.currentTimeMillis()}"
                     } else {
-                        Toast.makeText(context, "System is OFF. Cannot Capture.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "System OFF or Camera not connected", Toast.LENGTH_SHORT).show()
                     }
                 },
                 colors = ButtonDefaults.buttonColors(
