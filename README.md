@@ -1,97 +1,81 @@
-**Smart Door Monitor (IoT Motion Detection System)**
+### Smart Door Monitor (IoT Motion Detection System)
 
-Sistem keamanan pintu berbasis IoT yang mengintegrasikan sensor gerak, kamera pengawas, notifikasi Telegram, dan aplikasi Android Realtime. Sistem ini dirancang dengan fitur Zero-Config untuk kemudahan penggunaan.
+Sistem keamanan pintu cerdas berbasis IoT dengan fitur Zero-Config, notifikasi Telegram, dan monitoring Android Realtime.
 
-**Deskripsi**
-Proyek ini menggabungkan ESP32-CAM dan NodeMCU (ESP8266) untuk mendeteksi gerakan di area pintu. Saat sensor mendeteksi intrusi, sistem otomatis mengambil foto, menyalakan alarm, mengirim notifikasi ke Telegram, dan menampilkan live capture di aplikasi Android secara realtime.
+### Deskripsi Project
 
-**Masalah yang Dipecahkan**
-1. Keterbatasan Pemantauan Pasif: CCTV biasa hanya merekam tanpa memberi notifikasi instan. Sistem ini memberi peringatan detik itu juga.
+Smart Door Monitor adalah solusi keamanan rumah pintar yang mengintegrasikan ESP32-CAM (Kamera) dan NodeMCU ESP8266 (Sensor) melalui cloud Firebase.
 
-2. Kendala Konektivitas (IP Dinamis): Mengatasi masalah IP Address kamera yang sering berubah (DHCP) sehingga aplikasi Android tidak perlu di-coding ulang setiap ganti jaringan.
+Sistem ini dirancang khusus untuk mengatasi masalah IP Address Dinamis dan konektivitas WiFi yang sering berubah-ubah. Dengan fitur sinkronisasi IP otomatis, aplikasi Android dapat berjalan secara Plug-and-Play tanpa perlu konfigurasi ulang kodingan (hardcode) setiap kali perangkat berpindah jaringan.
 
-3. Fleksibilitas Jaringan: Mengatasi kerepotan hardcode SSID/Password WiFi. Alat bisa berpindah lokasi (rumah/kos/kampus) tanpa perlu upload ulang kode.
+### Masalah yang Terpecahkan
+
+Masalah Umum
+
+Solusi di Project Ini
+
+CCTV Pasif
+
+Mengubah sistem rekam biasa menjadi sistem peringatan dini (early warning) yang aktif detik itu juga via Telegram & App.
+
+IP Berubah (DHCP)
+
+Menggunakan Dynamic IP Sync. ESP32 setor IP ke Firebase, Android otomatis membaca IP baru tersebut.
+
+Ganti WiFi Repot
+
+Menggunakan WiFiManager. Ganti SSID/Password cukup lewat HP (Hotspot Portal) tanpa perlu flashing ulang kodingan.
+
+### Fitur Unggulan
+
+1. Motion Triggered Capture
+Kamera hanya aktif dan mengambil gambar saat sensor PIR mendeteksi aktivitas nyata. Hemat daya & penyimpanan.
+
+2. Dynamic IP Synchronization (Fitur Kunci)
+Aplikasi Android otomatis mengenali alamat IP ESP32-CAM yang baru dimanapun alat dipasang. Zero Configuration di sisi user.
+
+3. WiFi Manager (Auto Connect)
+Fitur Self-Healing: Jika WiFi putus atau alat dipindah lokasi, alat akan membuat Hotspot Portal untuk pengaturan ulang WiFi yang mudah.
+
+3. Auto-Save Evidence
+Bukti foto tersimpan otomatis ke Galeri HP dan dikirim ke Chat Telegram setiap 5 detik selama gerakan terdeteksi.
+
+4. Realtime Control
+Latensi rendah untuk mematikan/menyalakan sistem (Arm/Disarm) langsung dari saklar di aplikasi Android.
 
 
-**Fitur Utama & Alasan Pemilihan**
-Motion Triggered Capture (PIR Sensor):
+### Cara Kerja Sistem
 
-Alasan: Hemat daya dan penyimpanan. Kamera hanya aktif dan memfoto ketika ada aktivitas nyata.
-
-Continuous Auto-Save (Android & Telegram):
-
-Alasan: Bukti visual tersimpan otomatis di Galeri HP dan Chat Telegram setiap 5 detik selama gerakan terdeteksi, memastikan tidak ada momen yang terlewat.
-
-WiFiManager (Auto Connect):
-
-Alasan: Memungkinkan pengguna mengganti koneksi WiFi langsung lewat HP (Portal Hotspot) tanpa perlu laptop/coding ulang.
-
-Dynamic IP Synchronization (via Firebase):
-
-Alasan: Agar aplikasi Android otomatis mengenali alamat IP ESP32-CAM yang baru, menjadikan sistem Plug-and-Play.
-
-Telegram Bot Notification:
-
-Alasan: Notifikasi jarak jauh yang cepat dan gratis, bisa diakses meskipun aplikasi Android sedang tertutup.
-
-Realtime Control (Firebase):
-
-Alasan: Latensi rendah untuk mematikan/menyalakan sistem (Arm/Disarm) dari jarak jauh.
-
-
-**Cara Kerja Sistem**
 Sistem bekerja secara terintegrasi melalui Cloud Database dengan alur sebagai berikut:
 
-Inisialisasi & Sinkronisasi IP
+Inisialisasi: Saat menyala, ESP32-CAM mengirim IP Address Lokal terbarunya ke Firebase path /door1/cam_ip.
 
-Saat dinyalakan, ESP32-CAM dan NodeMCU terhubung ke WiFi menggunakan profil yang tersimpan (atau via Hotspot Portal jika WiFi berubah).
+Deteksi: Sensor PIR mendeteksi gerakan -> NodeMCU menyalakan Buzzer -> Update status /door1/motion ke true.
 
-ESP32-CAM secara otomatis mengirimkan IP Address Lokal terbarunya ke Firebase (/door1/cam_ip).
+Respon: ESP32-CAM membaca status motion -> Mengambil foto -> Mengirim ke Telegram Bot.
 
-Deteksi Intrusi
-
-Sensor PIR pada NodeMCU mendeteksi gerakan.
-
-NodeMCU menyalakan Buzzer (Alarm) dan mengubah status /door1/motion menjadi true di Firebase Realtime Database.
-
-Respon Kamera & Notifikasi
-
-ESP32-CAM memantau status /door1/motion. Saat bernilai true, kamera mengambil gambar.
-
-Gambar dikirim ke Bot Telegram pemilik rumah sebagai peringatan dini.
-
-Sistem menerapkan jeda 5 detik antar pengiriman foto untuk stabilitas.
-
-Monitoring Android (Realtime)
-
-Aplikasi Android membaca IP Kamera terbaru dari Firebase (tanpa perlu setting manual).
-
-Saat gerakan terdeteksi, aplikasi otomatis menampilkan Live View dari kamera.
-
-Fitur Auto-Save berjalan di latar belakang, menyimpan bukti foto ke Galeri HP setiap 2 detik selama gerakan masih ada.
+Monitoring: Aplikasi Android menyinkronkan IP kamera dari Firebase -> Menampilkan Live Stream -> Auto-save gambar ke galeri.
 
 
-**Alat dan Bahan**
-Hardware:
+### Alat dan Bahan
+Hardware
+1. ESP32-CAM (Modul Kamera OV2640)
 
-ESP32-CAM (Modul Kamera)
+2. NodeMCU ESP8266 (Controller Sensor)
 
-NodeMCU ESP8266 (Mikrokontroler Sensor)
+3. Sensor PIR HC-SR501 (Motion Detector)
 
-Sensor PIR HC-SR501 (Pendeteksi Gerak)
+4. Active Buzzer (Alarm Suara)
 
-Buzzer (Alarm Suara)
+5. FTDI Programmer (Untuk Upload Program)
 
-Kabel Jumper & Breadboard
+Software & Tech Stack
+1. Android Studio (Kotlin + Jetpack Compose)
 
-Software & Cloud:
+2. Arduino IDE (C++)
 
-Android Studio (Kotlin + Jetpack Compose)
+3. Firebase Realtime Database (Sinkronisasi Data)
 
-Arduino IDE (C++)
+4. Telegram Bot API (Notifikasi Jarak Jauh)
 
-Firebase Realtime Database (Sinkronisasi Data)
-
-Telegram Bot API (Notifikasi)
-
-Library: WiFiManager, UniversalTelegramBot, Firebase_ESP_Client, Coil (Android).
+5. Library: WiFiManager, UniversalTelegramBot, Firebase_ESP_Client, Coil (Android Image Loader).
