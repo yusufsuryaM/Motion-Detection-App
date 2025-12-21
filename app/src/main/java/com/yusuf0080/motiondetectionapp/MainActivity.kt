@@ -1,9 +1,13 @@
 package com.yusuf0080.motiondetectionapp
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
@@ -60,6 +64,20 @@ import java.io.OutputStream
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
+        val serviceIntent = Intent(this, MotionMonitorService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+
         enableEdgeToEdge()
         setContent {
             MotionDetectionAppTheme {
@@ -79,9 +97,7 @@ fun MotionScreen(modifier: Modifier = Modifier) {
     var motionDetected by remember { mutableStateOf(false) }
 
     var currentCamIp by remember { mutableStateOf("") }
-
     var imageUrl by remember { mutableStateOf("") }
-
     var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     val database = FirebaseDatabase.getInstance()
@@ -112,7 +128,6 @@ fun MotionScreen(modifier: Modifier = Modifier) {
                 val ip = snapshot.getValue(String::class.java)
                 if (!ip.isNullOrEmpty()) {
                     currentCamIp = ip
-                    // Set URL awal
                     imageUrl = "http://$ip/capture"
                 }
             }
@@ -276,24 +291,26 @@ fun MotionScreen(modifier: Modifier = Modifier) {
 fun saveImageToGallery(context: Context, bitmap: Bitmap, auto: Boolean) {
     val filename = "DoorCam_${System.currentTimeMillis()}.jpg"
     var fos: OutputStream? = null
-    var imageUri: android.net.Uri? = null
 
     try {
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DoorMonitor")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DoorMonitor")
+            }
+            val contentResolver = context.contentResolver
+            val imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            imageUri?.let { uri -> fos = contentResolver.openOutputStream(uri) }
+        } else {
         }
 
-        val contentResolver = context.contentResolver
-        imageUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-
-        imageUri?.let { uri ->
-            fos = contentResolver.openOutputStream(uri)
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos!!)
-
+        fos?.let {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
             if (!auto) {
-                Toast.makeText(context, "Image Saved Manually!", Toast.LENGTH_SHORT).show()
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Toast.makeText(context, "Image Saved Manually!", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     } catch (e: Exception) {
